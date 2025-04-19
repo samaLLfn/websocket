@@ -1,24 +1,27 @@
-'use strict';
+const WebSocket = require('ws');
+const wss = new WebSocket.Server({ port: process.env.PORT || 8080 });
 
-const express = require('express');
-const { Server } = require('ws');
-
-const PORT = process.env.PORT || 3000;
-const INDEX = '/index.html';
-
-const server = express()
-  .use((req, res) => res.sendFile(INDEX, { root: __dirname }))
-  .listen(PORT, () => console.log(`Listening on ${PORT}`));
-
-const wss = new Server({ server });
+let clients = []; // Track connected clients
 
 wss.on('connection', (ws) => {
-  console.log('Client connected');
-  ws.on('close', () => console.log('Client disconnected'));
+  clients.push(ws); // Add new client to clients list
+  console.log('New connection established');
+
+  // When a message is received, broadcast it to all connected clients
+  ws.on('message', (message) => {
+    console.log(`Received message: ${message}`);
+    clients.forEach((client) => {
+      if (client !== ws && client.readyState === WebSocket.OPEN) {
+        client.send(message); // Broadcast message to all other clients
+      }
+    });
+  });
+
+  // Handle client disconnect
+  ws.on('close', () => {
+    console.log('Connection closed');
+    clients = clients.filter(client => client !== ws); // Remove client from list
+  });
 });
 
-setInterval(() => {
-  wss.clients.forEach((client) => {
-    client.send(new Date().toTimeString());
-  });
-}, 1000);
+console.log('WebSocket server running...');
